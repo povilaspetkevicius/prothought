@@ -87,10 +87,41 @@ def list_thoughts(db, period_args)
   end
 end
 
+def strike_last_thought(db)
+  row = db.get_first_row(<<~SQL)
+    SELECT id, timestamp, text
+    FROM thoughts
+    ORDER BY timestamp DESC, id DESC
+    LIMIT 1
+  SQL
+
+  if row.nil?
+    puts "No thoughts to strike through."
+    return
+  end
+
+  id, ts, text = row
+
+  # If already wrapped in Markdown strikethrough, do nothing.
+  if text.start_with?("~~") && text.end_with?("~~")
+    puts "Last thought is already marked as nvm."
+    return
+  end
+
+  new_text = "~~#{text}~~"
+
+  db.execute(
+    "UPDATE thoughts SET text = ? WHERE id = ?",
+    [new_text, id]
+  )
+  puts "Marked last thought from #{ts} as nvm."
+end
+
 def print_usage
   $stderr.puts <<~TXT
     Usage:
       prothought <thought text...>
+      prothought nvm
       prothought summarise [today|yesterday|lastweek|lastmonth|YYYY-MM-DD]
       prothought summarize [today|yesterday|lastweek|lastmonth|YYYY-MM-DD]
   TXT
@@ -110,6 +141,8 @@ def main
   if %w[summarise summarize].include?(cmd)
     period_args = ARGV[1..] || []
     list_thoughts(db, period_args)
+  elsif cmd == "nvm"
+    strike_last_thought(db)
   else
     thought_text = ARGV.join(" ").strip
     if thought_text.empty?
@@ -125,4 +158,3 @@ end
 if __FILE__ == $PROGRAM_NAME
   main
 end
-

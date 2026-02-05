@@ -58,6 +58,7 @@ ruby prothought.rb summarise yesterday
 ruby prothought.rb summarise lastweek
 ruby prothought.rb summarise lastmonth
 ruby prothought.rb summarise 2026-02-05
+ruby prothought.rb nvm                # mark last thought as strikethrough (~~text~~)
 ```
 
 ---
