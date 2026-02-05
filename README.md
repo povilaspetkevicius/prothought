@@ -1,4 +1,4 @@
-## prothought — tiny daily thought logger
+## prothought - procrastination thoughts — tiny daily thought logger
 
 **Goal**: a simple CLI you can use every day:
 
@@ -110,3 +110,25 @@ Then you can call `prothought` without the alias.
 
 If you ever want to inspect or back up your data, you can copy or open `~/.prothought.db` with any SQLite viewer.
 
+## 5. Example of usage:
+```sh
+povilas@povilas 2026-02-05-day-amplifier % prothought need to fix rapala waders but maybe i should just buy new waders?
+Saved thought at 2026-02-05T16:03:41
+povilas@povilas 2026-02-05-day-amplifier % prothought chatgpt told me to not fix these waders so I probably need new waders and wader shoes             
+Saved thought at 2026-02-05T16:04:17
+povilas@povilas 2026-02-05-day-amplifier % prothought goto museline shop and chat with ernestas and also enroll to his school to get the basics
+Saved thought at 2026-02-05T16:04:57
+povilas@povilas 2026-02-05-day-amplifier % prothought maybe I should just do everything on my own
+Saved thought at 2026-02-05T16:11:39
+povilas@povilas 2026-02-05-day-amplifier % prothought nvm
+Marked last thought from 2026-02-05T16:11:39 as nvm.
+povilas@povilas 2026-02-05-day-amplifier % prothought summarise
+[2026-02-05T14:53:54] this is my first thought for today!
+[2026-02-05T15:11:32] ~~I just got a briliant idea - I should start hiding taxes~~
+[2026-02-05T15:44:43] i am thinking about going to merkys in the middle of April once the ice has been fully moved
+[2026-02-05T15:45:15] thinking about whether I should to kayak or packraft
+[2026-02-05T16:03:41] need to fix rapala waders but maybe i should just buy new waders?
+[2026-02-05T16:04:17] chatgpt told me to not fix these waders so I probably need new waders and wader shoes
+[2026-02-05T16:04:57] goto museline shop and chat with ernestas and also enroll to his school to get the basics
+[2026-02-05T16:11:39] ~~maybe I should just do everything on my own~~
+```
