@@ -59,7 +59,18 @@ ruby prothought.rb summarise lastweek
 ruby prothought.rb summarise lastmonth
 ruby prothought.rb summarise 2026-02-05
 ruby prothought.rb nvm                # mark last thought as strikethrough (~~text~~)
+ruby prothought.rb conclude today     # LLM-powered daily conclusion (Ollama by default)
 ```
+
+### 2.3 (Optional) LLM configuration (for `conclude`)
+
+By default, `conclude` targets a locally running Ollama server (OpenAI-compatible API) at `http://localhost:11434/v1`.
+
+You can override configuration via environment variables:
+
+- `PROTHOUGHT_LLM_BASE_URL` (default: `http://localhost:11434/v1`)
+- `PROTHOUGHT_LLM_MODEL` (optional; if unset, `prothought` will try to auto-pick from `/v1/models`)
+- `PROTHOUGHT_LLM_API_KEY` (optional; used for cloud providers, ignored by Ollama)
 
 ---
 

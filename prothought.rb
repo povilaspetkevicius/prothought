@@ -90,6 +90,20 @@ def list_thoughts(db, period_args)
   end
 end
 
+def thoughts_for_period(db, period_args)
+  start_ts, end_ts = parse_period(period_args)
+
+  db.execute(
+    <<~SQL,
+      SELECT timestamp, text
+      FROM thoughts
+      WHERE timestamp BETWEEN ? AND ?
+      ORDER BY timestamp ASC
+    SQL
+    [start_ts, end_ts]
+  )
+end
+
 def strike_last_thought(db)
   row = db.get_first_row(<<~SQL)
     SELECT id, timestamp, text
@@ -126,29 +140,87 @@ def llm_config
   {
     base_url: ENV.fetch("PROTHOUGHT_LLM_BASE_URL", "http://localhost:11434/v1"),
     api_key: ENV["PROTHOUGHT_LLM_API_KEY"], # optional / ignored by Ollama
-    model: ENV.fetch("PROTHOUGHT_LLM_MODEL", "llama3")
+    model: ENV["PROTHOUGHT_LLM_MODEL"]
   }
 end
 
-def llm_chat_completion(prompt, system_prompt: "You summarise my daily thoughts.")
-  cfg = llm_config
+def llm_build_uri(base_url, endpoint_path)
+  base = URI.parse(base_url)
+  base_path = (base.path && !base.path.empty?) ? base.path : "/"
+  base_path = "/v1" if base_path == "/"
+  base_path = base_path.sub(%r{/\z}, "")
 
-  uri = URI.join(cfg[:base_url], "/chat/completions")
+  endpoint_path = endpoint_path.start_with?("/") ? endpoint_path : "/#{endpoint_path}"
 
+  uri = base.dup
+  uri.path = "#{base_path}#{endpoint_path}"
+  uri.query = nil
+  uri
+end
+
+def llm_http_client(uri)
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = (uri.scheme == "https")
+  http
+end
+
+def llm_headers(api_key)
   headers = { "Content-Type" => "application/json" }
   # OpenAI-style servers expect an Authorization header; Ollama ignores it if present
-  headers["Authorization"] = "Bearer #{cfg[:api_key]}" if cfg[:api_key] && !cfg[:api_key].empty?
+  headers["Authorization"] = "Bearer #{api_key}" if api_key && !api_key.empty?
+  headers
+end
+
+def llm_list_models
+  cfg = llm_config
+  uri = llm_build_uri(cfg[:base_url], "/models")
+
+  http = llm_http_client(uri)
+  req = Net::HTTP::Get.new(uri.request_uri, llm_headers(cfg[:api_key]))
+  res = http.request(req)
+
+  return [] unless res.is_a?(Net::HTTPSuccess)
+
+  data = JSON.parse(res.body)
+  items = data["data"]
+  return [] unless items.is_a?(Array)
+
+  items.map { |m| m["id"] }.compact
+rescue
+  []
+end
+
+def llm_pick_default_model
+  models = llm_list_models
+  return "llama3" if models.empty?
+
+  # Prefer llama3 variants if available (common default on Ollama)
+  models.find { |id| id.start_with?("llama3") } || models.first
+end
+
+def llm_model
+  cfg = llm_config
+  env_model = cfg[:model]
+  return env_model if env_model && !env_model.strip.empty?
+
+  llm_pick_default_model
+end
+
+def llm_chat_completion(prompt, system_prompt: "You conclude my daily thoughts. Suggest one thing I should think about next.")
+  cfg = llm_config
+
+  uri = llm_build_uri(cfg[:base_url], "/chat/completions")
+  headers = llm_headers(cfg[:api_key])
 
   body = {
-    model: cfg[:model],
+    model: llm_model,
     messages: [
       { role: "system", content: system_prompt },
       { role: "user", content: prompt }
     ]
   }
 
-  http = Net::HTTP.new(uri.host, uri.port)
-  http.use_ssl = (uri.scheme == "https")
+  http = llm_http_client(uri)
 
   req = Net::HTTP::Post.new(uri.request_uri, headers)
   req.body = JSON.dump(body)
@@ -169,11 +241,32 @@ def llm_chat_completion(prompt, system_prompt: "You summarise my daily thoughts.
   choice["message"]["content"]
 end
 
+def conclude_period_with_llm(db, period_args)
+  rows = thoughts_for_period(db, period_args)
+
+  if rows.empty?
+    puts "No thoughts found for that period."
+    return
+  end
+
+  prompt = rows.map { |ts, text| "[#{ts}] #{text}" }.join("\n")
+
+  begin
+    summary = llm_chat_completion(prompt)
+  rescue => e
+    $stderr.puts "Error contacting LLM: #{e.message}"
+    return
+  end
+
+  puts summary
+end
+
 def print_usage
   $stderr.puts <<~TXT
     Usage:
       prothought <thought text...>
       prothought nvm
+      prothought conclude [today|yesterday|lastweek|lastmonth|YYYY-MM-DD]
       prothought summarise [today|yesterday|lastweek|lastmonth|YYYY-MM-DD]
       prothought summarize [today|yesterday|lastweek|lastmonth|YYYY-MM-DD]
   TXT
@@ -193,6 +286,9 @@ def main
   if %w[summarise summarize].include?(cmd)
     period_args = ARGV[1..] || []
     list_thoughts(db, period_args)
+  elsif cmd == "conclude"
+    period_args = ARGV[1..] || []
+    conclude_period_with_llm(db, period_args)
   elsif cmd == "nvm"
     strike_last_thought(db)
   else
