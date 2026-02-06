@@ -2,6 +2,9 @@
 
 require "sqlite3"
 require "date"
+require "net/http"
+require "uri"
+require "json"
 
 DB_PATH = File.expand_path("~/.prothought.db")
 
@@ -115,6 +118,55 @@ def strike_last_thought(db)
     [new_text, id]
   )
   puts "Marked last thought from #{ts} as nvm."
+end
+
+# --- Generic OpenAI-compatible LLM client (defaults to local Ollama) ---
+
+def llm_config
+  {
+    base_url: ENV.fetch("PROTHOUGHT_LLM_BASE_URL", "http://localhost:11434/v1"),
+    api_key: ENV["PROTHOUGHT_LLM_API_KEY"], # optional / ignored by Ollama
+    model: ENV.fetch("PROTHOUGHT_LLM_MODEL", "llama3")
+  }
+end
+
+def llm_chat_completion(prompt, system_prompt: "You summarise my daily thoughts.")
+  cfg = llm_config
+
+  uri = URI.join(cfg[:base_url], "/chat/completions")
+
+  headers = { "Content-Type" => "application/json" }
+  # OpenAI-style servers expect an Authorization header; Ollama ignores it if present
+  headers["Authorization"] = "Bearer #{cfg[:api_key]}" if cfg[:api_key] && !cfg[:api_key].empty?
+
+  body = {
+    model: cfg[:model],
+    messages: [
+      { role: "system", content: system_prompt },
+      { role: "user", content: prompt }
+    ]
+  }
+
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = (uri.scheme == "https")
+
+  req = Net::HTTP::Post.new(uri.request_uri, headers)
+  req.body = JSON.dump(body)
+
+  res = http.request(req)
+
+  unless res.is_a?(Net::HTTPSuccess)
+    raise "LLM request failed (#{res.code}): #{res.body}"
+  end
+
+  data = JSON.parse(res.body)
+
+  choice = data.fetch("choices", [])[0]
+  unless choice && choice["message"] && choice["message"]["content"]
+    raise "Unexpected LLM response format: #{res.body}"
+  end
+
+  choice["message"]["content"]
 end
 
 def print_usage
