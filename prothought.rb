@@ -16,6 +16,28 @@ def init_db(db)
       text TEXT NOT NULL
     )
   SQL
+
+  db.execute <<~SQL
+    CREATE TABLE IF NOT EXISTS markers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thought_id INTEGER NOT NULL,
+      marker TEXT NOT NULL,
+      FOREIGN KEY (thought_id) REFERENCES thoughts(id) ON DELETE CASCADE
+    )
+  SQL
+
+  db.execute <<~SQL
+    CREATE INDEX IF NOT EXISTS idx_markers_thought_id ON markers(thought_id)
+  SQL
+
+  db.execute <<~SQL
+    CREATE INDEX IF NOT EXISTS idx_markers_marker ON markers(marker)
+  SQL
+end
+
+def extract_hashtags(text)
+  # Match hashtags: # followed by alphanumeric characters, underscores, or hyphens
+  text.scan(/#([\w-]+)/).flatten.map(&:downcase).uniq
 end
 
 def log_thought(db, text)
@@ -24,7 +46,21 @@ def log_thought(db, text)
     "INSERT INTO thoughts (timestamp, text) VALUES (?, ?)",
     [ts, text]
   )
-  puts "Saved thought at #{ts}"
+
+  # Get the ID of the just-inserted thought
+  thought_id = db.last_insert_row_id
+
+  # Extract and save hashtags as markers
+  hashtags = extract_hashtags(text)
+  hashtags.each do |tag|
+    db.execute(
+      "INSERT INTO markers (thought_id, marker) VALUES (?, ?)",
+      [thought_id, tag]
+    )
+  end
+
+  marker_info = hashtags.empty? ? "" : " with markers: #{hashtags.map { |t| "##{t}" }.join(', ')}"
+  puts "Saved thought at #{ts}#{marker_info}"
 end
 
 def parse_period(args)
@@ -67,21 +103,37 @@ def parse_period(args)
   ]
 end
 
-def list_thoughts(db, period_args)
+def list_thoughts(db, period_args, marker: nil)
   start_ts, end_ts = parse_period(period_args)
 
-  rows = db.execute(
-    <<~SQL,
-      SELECT timestamp, text
-      FROM thoughts
-      WHERE timestamp BETWEEN ? AND ?
-      ORDER BY timestamp ASC
-    SQL
-    [start_ts, end_ts]
-  )
+  if marker
+    # Filter by marker
+    rows = db.execute(
+      <<~SQL,
+        SELECT DISTINCT t.timestamp, t.text
+        FROM thoughts t
+        INNER JOIN markers m ON t.id = m.thought_id
+        WHERE t.timestamp BETWEEN ? AND ?
+          AND m.marker = ?
+        ORDER BY t.timestamp ASC
+      SQL
+      [start_ts, end_ts, marker.downcase]
+    )
+  else
+    rows = db.execute(
+      <<~SQL,
+        SELECT timestamp, text
+        FROM thoughts
+        WHERE timestamp BETWEEN ? AND ?
+        ORDER BY timestamp ASC
+      SQL
+      [start_ts, end_ts]
+    )
+  end
 
   if rows.empty?
-    puts "No thoughts found for that period."
+    marker_msg = marker ? " with marker ##{marker}" : ""
+    puts "No thoughts found for that period#{marker_msg}."
     return
   end
 
@@ -90,18 +142,33 @@ def list_thoughts(db, period_args)
   end
 end
 
-def thoughts_for_period(db, period_args)
+def thoughts_for_period(db, period_args, marker: nil)
   start_ts, end_ts = parse_period(period_args)
 
-  db.execute(
-    <<~SQL,
-      SELECT timestamp, text
-      FROM thoughts
-      WHERE timestamp BETWEEN ? AND ?
-      ORDER BY timestamp ASC
-    SQL
-    [start_ts, end_ts]
-  )
+  if marker
+    # Filter by marker
+    db.execute(
+      <<~SQL,
+        SELECT DISTINCT t.timestamp, t.text
+        FROM thoughts t
+        INNER JOIN markers m ON t.id = m.thought_id
+        WHERE t.timestamp BETWEEN ? AND ?
+          AND m.marker = ?
+        ORDER BY t.timestamp ASC
+      SQL
+      [start_ts, end_ts, marker.downcase]
+    )
+  else
+    db.execute(
+      <<~SQL,
+        SELECT timestamp, text
+        FROM thoughts
+        WHERE timestamp BETWEEN ? AND ?
+        ORDER BY timestamp ASC
+      SQL
+      [start_ts, end_ts]
+    )
+  end
 end
 
 def strike_last_thought(db)
@@ -241,11 +308,12 @@ def llm_chat_completion(prompt, system_prompt: "You conclude my daily thoughts. 
   choice["message"]["content"]
 end
 
-def conclude_period_with_llm(db, period_args)
-  rows = thoughts_for_period(db, period_args)
+def conclude_period_with_llm(db, period_args, marker: nil)
+  rows = thoughts_for_period(db, period_args, marker: marker)
 
   if rows.empty?
-    puts "No thoughts found for that period."
+    marker_msg = marker ? " with marker ##{marker}" : ""
+    puts "No thoughts found for that period#{marker_msg}."
     return
   end
 
@@ -266,10 +334,31 @@ def print_usage
     Usage:
       prothought <thought text...>
       prothought nvm
-      prothought conclude [today|yesterday|lastweek|lastmonth|YYYY-MM-DD]
-      prothought summarise [today|yesterday|lastweek|lastmonth|YYYY-MM-DD]
-      prothought summarize [today|yesterday|lastweek|lastmonth|YYYY-MM-DD]
+      prothought conclude [today|yesterday|lastweek|lastmonth|YYYY-MM-DD] [#marker]
+      prothought summarise [today|yesterday|lastweek|lastmonth|YYYY-MM-DD] [#marker]
+      prothought summarize [today|yesterday|lastweek|lastmonth|YYYY-MM-DD] [#marker]
+
+    Examples:
+      prothought Working on the new feature #work #project
+      prothought conclude today #work
+      prothought summarize lastweek #personal
   TXT
+end
+
+def parse_args_with_marker(args)
+  # Separate marker (starts with #) from other arguments
+  marker = nil
+  period_args = []
+
+  args.each do |arg|
+    if arg.start_with?("#")
+      marker = arg[1..] # Remove the # prefix
+    else
+      period_args << arg
+    end
+  end
+
+  [period_args, marker]
 end
 
 def main
@@ -284,11 +373,11 @@ def main
   init_db(db)
 
   if %w[summarise summarize].include?(cmd)
-    period_args = ARGV[1..] || []
-    list_thoughts(db, period_args)
+    period_args, marker = parse_args_with_marker(ARGV[1..] || [])
+    list_thoughts(db, period_args, marker: marker)
   elsif cmd == "conclude"
-    period_args = ARGV[1..] || []
-    conclude_period_with_llm(db, period_args)
+    period_args, marker = parse_args_with_marker(ARGV[1..] || [])
+    conclude_period_with_llm(db, period_args, marker: marker)
   elsif cmd == "nvm"
     strike_last_thought(db)
   else
