@@ -1,145 +1,168 @@
-## prothought - procrastination thoughts — tiny daily thought logger
+# Prothought
 
-**Goal**: a simple CLI you can use every day:
+A simple, fast CLI for logging daily thoughts with hashtag support.
 
-- **Log a thought**: `prothought <thought text...>`
-- **See today’s thoughts**: `prothought summarise [today]`
+## Features
 
-Thoughts are stored locally in a small SQLite database at `~/.prothought.db`.
+- 📝 **Log thoughts** instantly from your terminal
+- 🏷️ **Hashtag support** for organizing thoughts
+- 🔍 **Filter by hashtag** to find related thoughts
+- ⚡ **Native binary** - no dependencies required
+- 🗄️ **SQLite storage** at `~/.prothought.db`
+- 🚫 **Mark as "nvm"** - strike through thoughts you changed your mind about
 
----
+## Installation
 
-## 1. Requirements
-
-- **Ruby** (recommended: 3.x)
-- **Bundler** (for installing gems)
-- `sqlite3` Ruby gem (managed via the `Gemfile`)
-
----
-
-## 2. Running locally from this folder (Ruby)
-
-### 2.1 Install dependencies
-
-From the project directory:
+### From Homebrew (once published)
 
 ```bash
-bundle install
+brew tap yourusername/tap
+brew install prothought
 ```
 
-This installs the `sqlite3` gem.
-
-### 2.2 Run the CLI
-
-From the project directory:
+### From Source
 
 ```bash
-ruby prothought.rb "This is my first thought"
-ruby prothought.rb summarise today
+git clone https://github.com/yourusername/prothought
+cd prothought
+go build -ldflags="-s -w" -o prothought
+sudo mv prothought /usr/local/bin/
 ```
 
-You can use `summarise` or `summarize` (both work).
+### Download Binary
 
-Supported periods:
+Get the latest release from [GitHub Releases](https://github.com/yourusername/prothought/releases)
 
-- `today` (default if omitted)
-- `yesterday`
-- `lastweek` (last 7 days including today)
-- `lastmonth` (last 30 days including today)
-- `YYYY-MM-DD` (ISO date)
+## Usage
 
-Examples (Ruby):
+### Log a Thought
 
 ```bash
-ruby prothought.rb I feel very focused right now
-ruby prothought.rb summarise          # today
-ruby prothought.rb summarise today    # today
-ruby prothought.rb summarise yesterday
-ruby prothought.rb summarise lastweek
-ruby prothought.rb summarise lastmonth
-ruby prothought.rb summarise 2026-02-05
-ruby prothought.rb nvm                # mark last thought as strikethrough (~~text~~)
-ruby prothought.rb conclude today     # LLM-powered daily conclusion (Ollama by default)
+prothought Working on the authentication feature #work #backend
+prothought Had a great idea for improving performance #ideas
 ```
 
-### 2.3 (Optional) LLM configuration (for `conclude`)
-
-By default, `conclude` targets a locally running Ollama server (OpenAI-compatible API) at `http://localhost:11434/v1`.
-
-You can override configuration via environment variables:
-
-- `PROTHOUGHT_LLM_BASE_URL` (default: `http://localhost:11434/v1`)
-- `PROTHOUGHT_LLM_MODEL` (optional; if unset, `prothought` will try to auto-pick from `/v1/models`)
-- `PROTHOUGHT_LLM_API_KEY` (optional; used for cloud providers, ignored by Ollama)
-
----
-
-## 3. Making `prothought` a single command (Ruby)
-
-1. **Add a shell alias** (quickest way).
-
-For `zsh`, add this line to your `~/.zshrc`:
+### View Thoughts
 
 ```bash
-alias prothought="ruby /Users/povilas/src/tries/2026-02-05-day-amplifier/prothought.rb"
+# Today's thoughts
+prothought summarize
+
+# Yesterday
+prothought summarize yesterday
+
+# Last 7 days
+prothought summarize lastweek
+
+# Last 30 days
+prothought summarize lastmonth
+
+# Specific date
+prothought summarize 2026-02-05
 ```
 
-Then reload your shell config:
+### Filter by Hashtag
 
 ```bash
-source ~/.zshrc
+# Show only work-related thoughts
+prothought summarize today #work
+
+# Show personal thoughts from last week
+prothought summarize lastweek #personal
 ```
 
-Now you can run:
+### Strike Through Last Thought
+
+Changed your mind about something? Mark it as "never mind":
 
 ```bash
-prothought This is logged as a thought
-prothought summarise today
+prothought nvm
 ```
 
-3. **(Optional) Put it directly on your PATH**.
+This wraps the last thought in markdown strikethrough (`~~text~~`).
 
-If you prefer, you can copy or symlink the script into a directory that’s already on your `PATH`, such as `/usr/local/bin`:
+## Database
+
+Thoughts are stored in `~/.prothought.db` (SQLite).
+
+### Schema
+
+**thoughts** table:
+- `id` - Auto-incrementing primary key
+- `timestamp` - ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS)
+- `text` - The thought text
+
+**markers** table:
+- `id` - Auto-incrementing primary key
+- `thought_id` - Foreign key to thoughts
+- `marker` - The hashtag (without #, lowercase)
+
+## Hashtags
+
+Hashtags are automatically extracted from your thoughts and stored as markers:
+
+- **Format**: `#word`, `#work-project`, `#test_case`
+- **Case-insensitive**: `#Work` and `#work` are the same
+- **Multiple tags**: Use as many as you want per thought
+- **Filtering**: Filter thoughts by any hashtag when viewing
+
+## Examples
 
 ```bash
-ln -s /Users/povilas/src/tries/2026-02-05-day-amplifier/prothought.rb /usr/local/bin/prothought
-chmod +x /usr/local/bin/prothought
+# Log thoughts with hashtags
+$ prothought Fixed the login bug #work #bugfix
+Saved thought at 2026-02-10T15:30:42 with markers: #work, #bugfix
+
+$ prothought Need to buy new fishing waders #personal #shopping
+Saved thought at 2026-02-10T15:31:15 with markers: #personal, #shopping
+
+$ prothought Actually, I'll fix the old ones #personal
+Saved thought at 2026-02-10T15:31:45 with markers: #personal
+
+$ prothought nvm
+Marked last thought from 2026-02-10T15:31:45 as nvm.
+
+# View all today's thoughts
+$ prothought summarize
+[2026-02-10T15:30:42] Fixed the login bug #work #bugfix
+[2026-02-10T15:31:15] Need to buy new fishing waders #personal #shopping
+[2026-02-10T15:31:45] ~~Actually, I'll fix the old ones #personal~~
+
+# View only work-related thoughts
+$ prothought summarize today #work
+[2026-02-10T15:30:42] Fixed the login bug #work #bugfix
 ```
 
-Then you can call `prothought` without the alias.
+## Development
 
-> Note: you may need `sudo` for writing to `/usr/local/bin` depending on your setup.
+### Build
 
----
-
-## 4. Data location and format
-
-- Database file: `~/.prothought.db`
-- Schema:
-  - `thoughts(id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT, text TEXT)`
-- Timestamps are stored in ISO8601 format with seconds precision, e.g. `2026-02-05T14:23:01`.
-
-If you ever want to inspect or back up your data, you can copy or open `~/.prothought.db` with any SQLite viewer.
-
-## 5. Example of usage:
-```sh
-povilas@povilas 2026-02-05-day-amplifier % prothought need to fix rapala waders but maybe i should just buy new waders?
-Saved thought at 2026-02-05T16:03:41
-povilas@povilas 2026-02-05-day-amplifier % prothought chatgpt told me to not fix these waders so I probably need new waders and wader shoes             
-Saved thought at 2026-02-05T16:04:17
-povilas@povilas 2026-02-05-day-amplifier % prothought goto museline shop and chat with ernestas and also enroll to his school to get the basics
-Saved thought at 2026-02-05T16:04:57
-povilas@povilas 2026-02-05-day-amplifier % prothought maybe I should just do everything on my own
-Saved thought at 2026-02-05T16:11:39
-povilas@povilas 2026-02-05-day-amplifier % prothought nvm
-Marked last thought from 2026-02-05T16:11:39 as nvm.
-povilas@povilas 2026-02-05-day-amplifier % prothought summarise
-[2026-02-05T14:53:54] this is my first thought for today!
-[2026-02-05T15:11:32] ~~I just got a briliant idea - I should start hiding taxes~~
-[2026-02-05T15:44:43] i am thinking about going to merkys in the middle of April once the ice has been fully moved
-[2026-02-05T15:45:15] thinking about whether I should to kayak or packraft
-[2026-02-05T16:03:41] need to fix rapala waders but maybe i should just buy new waders?
-[2026-02-05T16:04:17] chatgpt told me to not fix these waders so I probably need new waders and wader shoes
-[2026-02-05T16:04:57] goto museline shop and chat with ernestas and also enroll to his school to get the basics
-[2026-02-05T16:11:39] ~~maybe I should just do everything on my own~~
+```bash
+go build -o prothought main.go
 ```
+
+### Build with Optimizations
+
+```bash
+go build -ldflags="-s -w" -o prothought main.go
+```
+
+### Release with GoReleaser
+
+```bash
+# Install GoReleaser
+brew install goreleaser
+
+# Create a release
+git tag v1.0.0
+git push origin v1.0.0
+goreleaser release
+```
+
+## License
+
+MIT
+
+## Contributing
+
+Contributions welcome! Please open an issue or PR.
