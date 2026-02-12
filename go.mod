@@ -1,4 +1,4 @@
-module github.com/yourusername/prothought
+module github.com/povilaspetkevicius/prothought
 
 go 1.21
 
