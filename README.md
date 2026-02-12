@@ -147,18 +147,6 @@ go build -o prothought main.go
 go build -ldflags="-s -w" -o prothought main.go
 ```
 
-### Release with GoReleaser
-
-```bash
-# Install GoReleaser
-brew install goreleaser
-
-# Create a release
-git tag v1.0.0
-git push origin v1.0.0
-goreleaser release
-```
-
 ## License
 
 MIT
