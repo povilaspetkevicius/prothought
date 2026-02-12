@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(prothought \"Added hashtag/marker support to prothought \\(markers table, parse on save, filter in queries\\), then created /memorise Claude skill to auto-save conversation summaries with relevant hashtags #prothought #ruby #feature #database #claude #skill\")",
+      "Bash(go mod tidy:*)",
+      "Bash(go build:*)",
+      "Bash(./prothought-go:*)",
+      "Bash(sudo mv:*)",
+      "Bash(source:*)",
+      "Bash(./prothought:*)",
+      "Skill(memorise)",
+      "Skill(memorise:*)",
+      "Bash(prothought:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh api:*)",
+      "Bash(brew update:*)",
+      "Bash(brew install:*)",
+      "Bash(./prothought-test:*)"
+    ]
+  }
+}
