@@ -16,14 +16,14 @@ A simple, fast CLI for logging daily thoughts with hashtag support.
 ### From Homebrew (once published)
 
 ```bash
-brew tap yourusername/tap
-brew install prothought
+brew tap povilaspetkevicius/tap
+brew install povilaspetkevicius/tap/prothought
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/prothought
+git clone https://github.com/povilaspetkevicius/prothought
 cd prothought
 go build -ldflags="-s -w" -o prothought
 sudo mv prothought /usr/local/bin/
@@ -31,7 +31,7 @@ sudo mv prothought /usr/local/bin/
 
 ### Download Binary
 
-Get the latest release from [GitHub Releases](https://github.com/yourusername/prothought/releases)
+Get the latest release from [GitHub Releases](https://github.com/povilaspetkevicius/prothought/releases)
 
 ## Usage
 
