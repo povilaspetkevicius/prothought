@@ -17,6 +17,11 @@ const (
 )
 
 var (
+	// Version information (injected by goreleaser)
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+
 	dbPath       string
 	hashtagRegex = regexp.MustCompile(`#([\w-]+)`)
 )
@@ -281,6 +286,7 @@ func printUsage() {
   prothought nvm
   prothought summarise [today|yesterday|lastweek|lastmonth|YYYY-MM-DD] [#marker]
   prothought summarize [today|yesterday|lastweek|lastmonth|YYYY-MM-DD] [#marker]
+  prothought --version
 
 Examples:
   prothought Working on the new feature #work #project
@@ -293,6 +299,12 @@ func main() {
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
+	}
+
+	// Handle version flag
+	if os.Args[1] == "--version" || os.Args[1] == "-v" {
+		fmt.Printf("prothought version %s (commit: %s, built: %s)\n", version, commit, date)
+		return
 	}
 
 	// Open database
