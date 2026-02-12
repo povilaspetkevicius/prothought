@@ -35,6 +35,19 @@ Get the latest release from [GitHub Releases](https://github.com/povilaspetkevic
 
 ## Usage
 
+### Install Skills
+
+`prothought` could be used as a skill addition to your llm. Simply type in 'memorise this thread' in your local llm window, and `memorise` skill will be invoked automatically.
+This skill makes llm digest the current thread into 1-2 sentences and write it to your local prothought-memory.
+
+To copy agent skills from this project to your local configuration:
+
+```bash
+prothought init-skills
+```
+
+This will copy all skills from `.agents/skills/` to `~/.claude/skills/`, making them available in Claude Code. Other llms are yet to be covered.
+
 ### Log a Thought
 
 ```bash
@@ -109,6 +122,12 @@ Hashtags are automatically extracted from your thoughts and stored as markers:
 ## Examples
 
 ```bash
+# Install skills to Claude Code
+$ prothought init-skills
+✓ Copied skill: memorise
+
+Successfully copied 1 skill(s) to /Users/username/.claude/skills
+
 # Log thoughts with hashtags
 $ prothought Fixed the login bug #work #bugfix
 Saved thought at 2026-02-10T15:30:42 with markers: #work, #bugfix

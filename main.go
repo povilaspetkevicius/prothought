@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -280,18 +281,124 @@ func parseArgsWithMarker(args []string) ([]string, string) {
 	return periodArgs, marker
 }
 
+// Copy a file from src to dst
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source file: %w", err)
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("create destination file: %w", err)
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, sourceFile); err != nil {
+		return fmt.Errorf("copy file: %w", err)
+	}
+
+	return nil
+}
+
+// Copy skills from .agents/skills to ~/.claude/skills
+func initSkills() error {
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("get working directory: %w", err)
+	}
+
+	// Check if .agents/skills exists
+	agentsSkillsDir := filepath.Join(cwd, ".agents", "skills")
+	if _, err := os.Stat(agentsSkillsDir); os.IsNotExist(err) {
+		return fmt.Errorf("no .agents/skills directory found in current directory")
+	}
+
+	// Get user's home directory
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("get home directory: %w", err)
+	}
+
+	// Target directory
+	claudeSkillsDir := filepath.Join(home, ".claude", "skills")
+
+	// Ensure ~/.claude/skills exists
+	if err := os.MkdirAll(claudeSkillsDir, 0755); err != nil {
+		return fmt.Errorf("create claude skills directory: %w", err)
+	}
+
+	// Read all skill directories
+	entries, err := os.ReadDir(agentsSkillsDir)
+	if err != nil {
+		return fmt.Errorf("read skills directory: %w", err)
+	}
+
+	copiedCount := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		skillName := entry.Name()
+		srcSkillDir := filepath.Join(agentsSkillsDir, skillName)
+		dstSkillDir := filepath.Join(claudeSkillsDir, skillName)
+
+		// Create destination skill directory
+		if err := os.MkdirAll(dstSkillDir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not create directory for skill '%s': %v\n", skillName, err)
+			continue
+		}
+
+		// Copy all files in the skill directory
+		skillFiles, err := os.ReadDir(srcSkillDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not read skill '%s': %v\n", skillName, err)
+			continue
+		}
+
+		for _, file := range skillFiles {
+			if file.IsDir() {
+				continue
+			}
+
+			srcFile := filepath.Join(srcSkillDir, file.Name())
+			dstFile := filepath.Join(dstSkillDir, file.Name())
+
+			if err := copyFile(srcFile, dstFile); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not copy %s: %v\n", file.Name(), err)
+				continue
+			}
+		}
+
+		fmt.Printf("✓ Copied skill: %s\n", skillName)
+		copiedCount++
+	}
+
+	if copiedCount == 0 {
+		return fmt.Errorf("no skills found to copy")
+	}
+
+	fmt.Printf("\nSuccessfully copied %d skill(s) to %s\n", copiedCount, claudeSkillsDir)
+	return nil
+}
+
 func printUsage() {
 	fmt.Fprintf(os.Stderr, `Usage:
   prothought <thought text...>
   prothought nvm
   prothought summarise [today|yesterday|lastweek|lastmonth|YYYY-MM-DD] [#marker]
   prothought summarize [today|yesterday|lastweek|lastmonth|YYYY-MM-DD] [#marker]
+  prothought init-skills
   prothought --version
 
 Examples:
   prothought Working on the new feature #work #project
   prothought summarize today #work
   prothought summarize lastweek #personal
+  prothought init-skills
 `)
 }
 
@@ -336,6 +443,12 @@ func main() {
 	case "nvm":
 		if err := strikeLastThought(db); err != nil {
 			fmt.Fprintf(os.Stderr, "Error striking thought: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "init-skills":
+		if err := initSkills(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing skills: %v\n", err)
 			os.Exit(1)
 		}
 
